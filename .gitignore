@@ -1,0 +1,14 @@
+# PDFs (Paper submissions and reviews)
+*.pdf
+
+# Cached Extracted Features
+cache/
+__pycache__/
+*.pyc
+
+# Datasets
+ESC-50/
+FordA/
+ECG200/
+Earthquakes/
+datasets/
