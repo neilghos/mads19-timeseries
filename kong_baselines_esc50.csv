@@ -1,0 +1,5 @@
+Model,Accuracy
+Cnn6,87.30 ± 1.09%
+Cnn10,91.05 ± 0.73%
+MobileNetV1,93.25 ± 0.57%
+MobileNetV2,92.60 ± 1.04%

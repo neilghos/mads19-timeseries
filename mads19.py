@@ -52,11 +52,24 @@ def extract_features(audio_file):
 
 def mel_image_224(audio_file):
     audio, sr = load_audio(audio_file)
+    return extract_from_array(audio, sr)
 
-    mfcc = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=3)
+def extract_from_array(audio, sr=32000):
+    seq_len = len(audio)
+    
+    # Dynamically scale the FFT window size to handle short general time-series (e.g. len 96)
+    # without destroying the structural data through massive zero-padding.
+    n_fft = min(2048, seq_len)
+    # Ensure hop length is valid and at least 1
+    hop_length = max(1, n_fft // 4)
+    
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        mfcc = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=3, n_fft=n_fft, hop_length=hop_length)
     mfcc_anchors = np.mean(mfcc, axis=1)
 
-    S = np.abs(librosa.stft(audio))
+    S = np.abs(librosa.stft(audio, n_fft=n_fft, hop_length=hop_length))
     flatness = librosa.feature.spectral_flatness(S=S)[0]
     entropy_flow = np.mean(flatness)
 
@@ -69,7 +82,7 @@ def mel_image_224(audio_file):
 
     v = np.diff(audio)
     a = np.diff(np.diff(audio))
-    centroid_series = librosa.feature.spectral_centroid(y=audio, sr=sr)[0]
+    centroid_series = librosa.feature.spectral_centroid(y=audio, sr=sr, n_fft=n_fft, hop_length=hop_length)[0]
     m_eff = (np.mean(centroid_series) + np.std(centroid_series)) / sr
 
     ke_series = 0.5 * m_eff * (v**2)
@@ -109,8 +122,8 @@ def mel_image_224(audio_file):
     pde_consistency = np.abs(np.mean(accel_t**2) - (combined_hessian / (sr**2)))
     pde_residual = pde_consistency / (np.var(audio) + 1e-10)
 
-    hop_length = 512
-    onset = librosa.onset.onset_strength(y=audio, sr=sr, hop_length=hop_length)
+    # Use dynamic hop_length instead of hardcoded 512
+    onset = librosa.onset.onset_strength(y=audio, sr=sr, hop_length=hop_length, n_fft=n_fft)
     damping_coeff = np.std(onset) / (np.mean(onset) + 1e-10)
 
     envelope = np.abs(onset)
@@ -123,13 +136,13 @@ def mel_image_224(audio_file):
         attack_segment = envelope[start_idx:end_idx]
         attack_gradient = float(np.mean(np.gradient(attack_segment))) if len(attack_segment) > 1 else 0.0
 
-    freqs = librosa.fft_frequencies(sr=sr)
+    freqs = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
     col_sum = np.sum(S, axis=0) + 1e-10
     centroid_frames = np.sum(freqs[:, None] * S, axis=0) / col_sum
     spread = np.mean(np.sqrt(np.sum(((freqs[:, None] - centroid_frames[None, :]) ** 2) * S, axis=0) / col_sum))
 
     pulse_density = len(find_peaks(np.abs(audio), height=np.max(np.abs(audio)) * 0.3)[0]) / (len(audio) / sr)
-    rolloff = librosa.feature.spectral_rolloff(S=S, sr=sr, roll_percent=0.85)[0]
+    rolloff = librosa.feature.spectral_rolloff(S=S, sr=sr, roll_percent=0.85, n_fft=n_fft, hop_length=hop_length)[0]
     friction_point = np.mean(rolloff)
 
     flux_gradient = np.std(np.diff(onset)) if len(onset) > 1 else 0.0

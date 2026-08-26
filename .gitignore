@@ -12,3 +12,7 @@ FordA/
 ECG200/
 Earthquakes/
 datasets/
+/resources
+/weights
+/audioset_tagging_cnn
+/distilller
